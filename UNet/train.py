@@ -24,13 +24,6 @@ def do_epoch(args, epoch, net, dataset, optimizer, eval=False):
     epoch_acc = 0.0
     for iter, data in enumerate(dataloader):
         img, mask = data
-        
-        import pdb
-        import matplotlib.pyplot as plt
-        plt.imshow(mask.numpy()[0,0,:,:])
-        plt.savefig('tmp1.png')
-        pdb.set_trace()
-        
         img = img.cuda() if args.use_cuda else img.cpu()
         if mask is not None:
             mask = mask.cuda() if args.use_cuda else mask.cpu()
@@ -47,7 +40,7 @@ def do_epoch(args, epoch, net, dataset, optimizer, eval=False):
         if eval:
             title = 'acc={}'
             prob = torch.sigmoid(torch.argmax(pred[0,0,:,:]))
-            vis_res(img[0,:,:,:], mask[0,0,:,:], prob, pred[0,0,:,:]>0.5, save_path='./epoch_{}_iter_{}.png'.format(epoch, iter), title=None)
+            vis_res(img[0,:,:,:], mask[0,0,:,:], prob, prob>0.5, save_path='./epoch_{}_iter_{}.png'.format(epoch, iter), title=None)
 
     return epoch_loss / iter, epoch_acc / iter
             
@@ -62,13 +55,11 @@ def run(args):
     else:
         net = UNet(n_class=1)
 
-    assert(args.loss_type in ['bce', 'dice', 'ce']), 'Loss type must be bce, dice or ce'
+    assert(args.loss_type in ['bce', 'dice']), 'Loss type must be bce or dice'
     if args.loss_type == 'bce':
         net.loss = torch.nn.BCEWithLogitsLoss()
     elif args.loss_type == 'dice':
         net.loss = DiceLoss()
-    elif args.loss_type == 'ce':
-        net.loss = torch.nn.CrossEntropyLoss()
     net.metric = DiceLoss(get_coefficient=True)
 
     if args.use_cuda:
@@ -85,20 +76,8 @@ def run(args):
                             ToTensor(),
                             ExtendImageChannel(),
                          ])
-    train_dataset = MicroscopyDataset(
-        args.dataset_root, 
-        args.dataset_train_list, 
-        transform=train_transforms, 
-        with_3_class_mask=args.with_3_class_gt, 
-        edge_width=args.edge_width
-    )
-    val_dataset = MicroscopyDataset(
-        args.dataset_root, 
-        args.dataset_val_list, 
-        with_3_class_mask=args.with_3_class_gt, 
-        edge_width=args.edge_width,
-        transform=None
-    )
+    train_dataset = MicroscopyDataset(args.dataset_root, args.dataset_train_list, transform=train_transforms)
+    val_dataset = MicroscopyDataset(args.dataset_root, args.dataset_val_list, transform=None)
     logging.info('Train set size:{}, Val set size:{}'.format(len(train_dataset), len(val_dataset)))
 
     logging.info('Start training...')
@@ -106,12 +85,15 @@ def run(args):
         time1 = time.time()
         loss, acc = do_epoch(args, epoch, net, train_dataset, optimizer)
         time2 = time.time()
-        logger.info('epoch [{}/{}], time elapse={:.2f}, loss={:.4f}, train_acc={:4.f}'.format(epoch, args.epoch, time2-time1, loss, acc))
+        logging.info('epoch [{}/{}], time elapse={:.2f}, loss={:.4f}, train_acc={:4.f}'.format(epoch, args.epoch, time2-time1, loss, acc))
 
         if epoch % args.eval_freq == 0:
             logging.info('Evaluate model...')
             loss, acc = do_epoch(args, epoch, net, val_dataset, None, eval=True)
             logging.info('val_loss={:.4f}, val_acc={:4.f}'.format(loss, acc))
+
+        if epoch % args.save_freq == 0:
+            torch.save(net, 'checkpoint_epoch{}.pt'.format(epoch))
         
     logging.info('Finish training...')
 
@@ -127,15 +109,13 @@ if __name__ == '__main__':
     parser.add_argument('--training-patch-size', default=512, type=int, help='image crop size during training')
     parser.add_argument('--dataset-train-list', type=str, required=True)
     parser.add_argument('--dataset-val-list', type=str, required=True)
-    parser.add_argument('--with-3-class-gt', default=False, type=bool_str)
-    parser.add_argument('--edge-width', default=5, type=int)
-    
     
     parser.add_argument('--lr', default=0.001, type=float, help='learning rate')
     parser.add_argument('--epoch', default=10, type=int, help='learning epochs')
     parser.add_argument('--batchsize', default=5, type=int, help='batch size during training')
-    parser.add_argument('--loss-type', default='bce', type=str, help='loss type includes: bce, dice, ce')
+    parser.add_argument('--loss-type', default='bce', type=str, help='loss type includes: bce, dice')
     parser.add_argument('--eval-freq', default=1, type=int, help='to evaluate and visualize at every X epochs')
+    parser.add_argument('--save-freq', default=1, type=int, help='save model at every X epochs')
     
     parser.add_argument('--enable-resnet-pretrain', type=bool_str, required=True)
     parser.add_argument('--resume', default=False, type=bool_str, help='load weights from a specified model')

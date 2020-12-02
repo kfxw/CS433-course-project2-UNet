@@ -1,5 +1,4 @@
 import os
-import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage import io, transform
@@ -71,7 +70,7 @@ class ExtendImageChannel(object):
         image = image.repeat([3,1,1])
         return {'image': image,
                 'mask': mask}
-                   
+
 # --------------------------------------------------------------
 # --------------------------------------------------------------
 # MAIN DATASET
@@ -79,7 +78,7 @@ class ExtendImageChannel(object):
 # --------------------------------------------------------------
 class MicroscopyDataset(Dataset):
     
-    def __init__(self, DATASET_DIR, DATASET_LIST, transform=None, with_mask=True, with_3_class_mask=False, edge_width=5):
+    def __init__(self, DATASET_DIR, DATASET_LIST, transform=None, with_mask=True):
     
         self.image_dir = os.path.join(DATASET_DIR, 'rawimages')
         self.mask_dir = os.path.join(DATASET_DIR, 'groundtruth')
@@ -91,9 +90,6 @@ class MicroscopyDataset(Dataset):
             self.masklist = list(map(lambda x: os.path.join(self.mask_dir, x.strip()), data_lines))
             
         self.transform = transform
-        
-        self.with_3_class_mask = with_3_class_mask
-        self.edge_width = edge_width
 
     def __len__(self):
         return len(self.imagelist)
@@ -107,17 +103,7 @@ class MicroscopyDataset(Dataset):
         image = Image.fromarray(image)
         if self.with_mask:
             mask_path = self.masklist[idx]
-            if self.with_3_class_mask:
-                # 0: bg, 1: fg, 2: edge
-                mask = np.asarray(ImageOps.grayscale(Image.open(mask_path))).astype(np.uint8)
-                detected_edges = cv2.Canny(mask, 0, 1)
-                kernel = np.ones((self.edge_width, self.edge_width),np.uint8)
-                detected_edges = cv2.dilate(detected_edges, kernel)
-                mask[mask != 0] = 1
-                mask[detected_edges > 128] = 2
-                mask = mask.astype(np.float)
-            else:
-                mask = (np.asarray(ImageOps.grayscale(Image.open(mask_path))) != 0).astype(np.float)
+            mask = (np.asarray(ImageOps.grayscale(Image.open(mask_path))) != 0).astype(np.float)
             mask = Image.fromarray(mask)
             sample = {'image': image, 'mask': mask}
             if self.transform:
