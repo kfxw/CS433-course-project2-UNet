@@ -1,1 +1,1 @@
-python train.py --dataset-root ../S-BSST265/ --training-patch-size 512 --lr 0.001 --epoch 10 --batchsize 5 --dataset-train-list train.txt --dataset-val-list val.txt --loss-type dice --enable-resnet-pretrain 1 --resume 0 --use-cuda 1
+python train.py --dataset-root ../S-BSST265/ --training-patch-size 512 --lr 0.001 --epoch 10 --eval-freq 1 --save-freq 5 --batchsize 5 --dataset-train-list train.txt --dataset-val-list val.txt --loss-type dice --enable-resnet-pretrain 1 --resume 0 --use-cuda 1

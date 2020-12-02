@@ -40,7 +40,7 @@ def do_epoch(args, epoch, net, dataset, optimizer, eval=False):
         if eval:
             title = 'acc={}'
             prob = torch.sigmoid(torch.argmax(pred[0,0,:,:]))
-            vis_res(img[0,:,:,:], mask[0,0,:,:], prob, pred[0,0,:,:]>0.5, save_path='./epoch_{}_iter_{}.png'.format(epoch, iter), title=None)
+            vis_res(img[0,:,:,:], mask[0,0,:,:], prob, prob>0.5, save_path='./epoch_{}_iter_{}.png'.format(epoch, iter), title=None)
 
     return epoch_loss / iter, epoch_acc / iter
             
@@ -91,6 +91,9 @@ def run(args):
             logging.info('Evaluate model...')
             loss, acc = do_epoch(args, epoch, net, val_dataset, None, eval=True)
             logging.info('val_loss={:.4f}, val_acc={:4.f}'.format(loss, acc))
+
+        if epoch % args.save_freq == 0:
+            torch.save(net, 'checkpoint_epoch{}.pt'.format(epoch))
         
     logging.info('Finish training...')
 
@@ -112,6 +115,7 @@ if __name__ == '__main__':
     parser.add_argument('--batchsize', default=5, type=int, help='batch size during training')
     parser.add_argument('--loss-type', default='bce', type=str, help='loss type includes: bce, dice')
     parser.add_argument('--eval-freq', default=1, type=int, help='to evaluate and visualize at every X epochs')
+    parser.add_argument('--save-freq', default=1, type=int, help='save model at every X epochs')
     
     parser.add_argument('--enable-resnet-pretrain', type=bool_str, required=True)
     parser.add_argument('--resume', default=False, type=bool_str, help='load weights from a specified model')
